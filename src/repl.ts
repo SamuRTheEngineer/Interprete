@@ -39,9 +39,8 @@ function printTokens(tokens: Token[]): void {
   for (const tok of tokens) {
     if (tok.type === TokenType.EOF) break;
     const hasError = tok.type === TokenType.ILLEGAL;
-    const prefix   = hasError ? "⚠" : "  ";
     console.log(
-      `${prefix}${padEnd(tok.type, 16)} ${padEnd(`"${tok.literal}"`, 22)} ${tok.line}:${tok.column}`
+      `${padEnd(tok.type, 16)} ${padEnd(`"${tok.literal}"`, 22)} ${tok.line}:${tok.column}`
     );
   }
 
