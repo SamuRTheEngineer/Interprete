@@ -5,6 +5,16 @@ import { Lexer } from "./lexer";
 import type { Token } from "./tokens";
 import { TokenType } from "./tokens";
 
+
+const EEGG1 = `
+  _____                     ___________
+ |  __ \                    |  |  __  |
+ | |__) |___  _ __ _ __     |  | |  | |
+ |  ___/ _ \| '__| '_ \    _|  |_|  |_|
+ | |  | (_) | |  | | | |  |            |
+ |_|   \___/|_|  |_| |_|  |____HUB_____|
+`;
+
 const BANNER = `
 ╔══════════════════════════════════════════════════════╗
 ║          RPS Lexer  –  Analizador Léxico             ║
@@ -14,6 +24,10 @@ const BANNER = `
 ║    :h           → mostrar ayuda                      ║
 ║    :clear        → limpiar pantalla                  ║
 ╚══════════════════════════════════════════════════════╝
+`;
+
+const OLA = `
+Ola como estas
 `;
 
 const HELP = `
@@ -65,7 +79,7 @@ export function startRepl(): void {
 
     if (!input) { rl.prompt(); return; }
 
-    if (input === ":q" || input === "exit" || input === "quit") {
+    if (input === ":q" || input === "exit" || input === "quit" || input === ":Q") {
       rl.close();
         return;
     }
@@ -79,6 +93,21 @@ export function startRepl(): void {
     if (input === ":clear") {
       console.clear();
       console.log(BANNER);
+      rl.prompt();
+      return;
+
+    }
+
+    //Easter Eggs
+
+    if (input === ":ph") {
+      console.log(EEGG1);
+      rl.prompt();
+      return;
+    }
+
+    if (input === ":ola") {
+      console.log(OLA);
       rl.prompt();
       return;
     }

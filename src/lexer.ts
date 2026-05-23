@@ -5,7 +5,7 @@
 import { Token, TokenType, createToken, KEYWORDS } from "./tokens";
 
 export class Lexer {
-  private source  : string;
+  private source  : string; // código fuente a analizar (codigo ingresado)
   private pos     : number = 0;  // posición actual
   private line    : number = 1;
   private column  : number = 1;
@@ -93,10 +93,10 @@ export class Lexer {
     let result = "";
 
     while (this.current() !== quote && this.current() !== "\0") {
-      if (this.current() === "\\") {
+      if (this.current() === "\\") { 
         this.advance();
         const esc: Record<string, string> = { n:"\n", t:"\t", r:"\r", "\\":"\\", "'":"'", '"':'"' };
-        result += esc[this.current()] ?? this.current();
+        result += esc[this.current()] ?? this.current(); //Si hay un escape (\) no valido, se ignora el backslash
         this.advance();
       } else {
         result += this.advance();
@@ -148,7 +148,7 @@ export class Lexer {
     }
 
     // Operadores y símbolos
-    this.advance();
+    this.advance(); //Con esto, ch es actual, y this.current() es el siguiente.
 
     switch (ch) {
       case "+":
