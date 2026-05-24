@@ -64,6 +64,7 @@ export const enum Precedence {
   OR          = 2,   // ||
   AND         = 3,   // &&
   EQUALS      = 4,   // == !=
+  ASSIGN      = 5,   // = += -= *= /= %=    --Hacía falta agregar los assigns compuestos a la tabla de precedencias para que se agrupen correctamente con sus operandos.
   LESSGREATER = 5,   // < <= > >=
   SUM         = 6,   // + -
   PRODUCT     = 7,   // * / %
@@ -78,6 +79,12 @@ const PRECEDENCES: Partial<Record<TokenType, Precedence>> = {
   [TokenType.AND]:      Precedence.AND,
   [TokenType.EQ]:       Precedence.EQUALS,
   [TokenType.NEQ]:      Precedence.EQUALS,
+  [TokenType.ASSIGN]:   Precedence.ASSIGN,
+  [TokenType.PLUS_ASSIGN]: Precedence.ASSIGN,
+  [TokenType.MINUS_ASSIGN]: Precedence.ASSIGN,
+  [TokenType.STAR_ASSIGN]: Precedence.ASSIGN,
+  [TokenType.SLASH_ASSIGN]: Precedence.ASSIGN,
+  [TokenType.PERCENT_ASSIGN]: Precedence.ASSIGN,
   [TokenType.LT]:       Precedence.LESSGREATER,
   [TokenType.LTE]:      Precedence.LESSGREATER,
   [TokenType.GT]:       Precedence.LESSGREATER,
@@ -786,6 +793,8 @@ export class Parser {
     //Parsea la expresión del valor a asignar, con la menor precedencia para que se agrupe todo lo que haya a la derecha.
     const value = this.parseExpression(Precedence.LOWEST);
     if (value === null) return null;
+
+    if (this.currentTokenIs(TokenType.SEMICOLON)) this.advance();
 
     return new AssignExpression(token, left, operator, value);
   }
