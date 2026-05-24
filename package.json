@@ -4,8 +4,9 @@
   "description": "Proyecto del curso **Lenguajes y Compiladores 2026**.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "ts-node src/index.ts"
+    "test:lexer": "ts-node tests/test_lexer.ts",
+    "test:parser": "ts-node tests/test_parser.ts",
+    "dev": "ts-node tests/index.ts"
   },
   "keywords": [],
   "author": "",
