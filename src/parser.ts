@@ -177,7 +177,9 @@ export class Parser {
       [TokenType.ASTERISK,        (left) => this.parseInfixExpression(left)],
       [TokenType.SLASH,           (left) => this.parseInfixExpression(left)],
       [TokenType.PERCENT,         (left) => this.parseInfixExpression(left)],
-      [TokenType.POWER,           (left) => this.parseInfixExpression(left)],
+
+      [TokenType.POWER,           (left) => this.parsePowerExpression(left)],
+      
       [TokenType.EQ,              (left) => this.parseInfixExpression(left)],
       [TokenType.NEQ,             (left) => this.parseInfixExpression(left)],
       [TokenType.LT,              (left) => this.parseInfixExpression(left)],
@@ -769,6 +771,26 @@ export class Parser {
     const right = this.parseExpression(prec);
     return new InfixExpression(token, left, operator, right);
   }
+
+  /*
+  Parsea la expresión de potencia: left ** right
+Recibe la expresión izquierda ya parseada como parámetro.
+El _current_token apunta al operador '**'.
+  */
+  private parsePowerExpression(left: Expression): InfixExpression | null {
+  const token = this.currentToken;
+  const operator = this.currentToken.literal;
+  const prec = this.currentPrecedence();
+
+  this.advance(); // Consume '**'
+
+  // Al restar 1 a la precedencia, permitimos que el Pratt Parser
+  // siga agrupando hacia la derecha si encuentra otra potencia consecutiva.
+  const right = this.parseExpression(prec - 1); 
+
+  return new InfixExpression(token, left, operator, right);
+}
+
 
   /**
    * Asignación: x = expr   x += expr   x -= expr  etc.
