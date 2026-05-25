@@ -6,6 +6,7 @@
   "scripts": {
     "test:lexer": "ts-node tests/test_lexer.ts",
     "test:parser": "ts-node tests/test_parser.ts",
+    "test:evaluator": "ts-node tests/test_evaluator.ts",
     "dev": "ts-node src/index.ts"
   },
   "keywords": [],

@@ -1,0 +1,20 @@
+print("Prueba del Algoritmo de Euclides");
+
+// Función recursiva para calcular el MCD
+let mcd = function(a, b) {
+    if (b == 0) {
+        return a;
+    }
+    return mcd(b, a % b);
+};
+
+print("MCD de 48 y 18 (Debería ser 6):");
+print(mcd(48, 18));
+
+print("");
+print("MCD de 101 y 10 (Primos relativos, debería ser 1):");
+print(mcd(101, 10));
+
+print("");
+print("MCD de 356 y 24 (Debería ser 4):");
+print(mcd(356, 24));

@@ -407,6 +407,11 @@ run("llamada_argumentos_son_expresiones", () => {
 // ERRORES DEL PARSER
 // ─────────────────────────────────────────────────────────────────────────────
 
+run("error_const_sin_inicializar", () => {
+  const result = parseWithErrors("const x;");
+  assert.ok(result.length > 0, "Se esperaba al menos un error");
+});
+
 run("error_let_sin_identificador", () => {
   const errors = parseWithErrors("let 5 = x;");
   assert.ok(errors.length > 0, "Se esperaba al menos un error");

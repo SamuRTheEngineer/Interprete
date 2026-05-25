@@ -1,13 +1,15 @@
 // =============================================================================
-//  repl.ts  –  Read-Eval-Print Loop
+//  src/repl.ts  –  Read-Eval-Print Loop (Consola Interactiva)
 // =============================================================================
 
 import * as readline from "readline";
 import { Lexer } from "./lexer";
-import type { Token } from "./tokens";
-import { TokenType } from "./tokens";
-import { visualize } from "./astVisualizer";
 import { Parser } from "./parser";
+import { evaluate } from "./evaluator";
+import { Environment } from "./environment";
+import { TokenType, type Token } from "./tokens";
+import { visualize } from "./astVisualizer";
+import { ObjectTypes, NULL } from "./object_system";
 
 // Paletas del REPL
 const C_RESET   = "\x1b[0m";
@@ -18,6 +20,8 @@ const C_YELLOW  = "\x1b[33m";
 const C_CYAN    = "\x1b[36m";
 const C_DIM     = "\x1b[90m";
 
+type ReplMode = "AST" | "EVALUATE";
+
 const EEGG1 = `
   _____                     ___________
  |  __ \\                    |  |  __  |
@@ -27,32 +31,31 @@ const EEGG1 = `
  |_|   \\___/|_|  |_| |_|  |____HUB_____|
 `;
 
-const BANNER = `
+function getBanner(mode: ReplMode): string {
+  return `
 ${C_CYAN}${C_BOLD}╔══════════════════════════════════════════════════════╗
-║          RPS Lexer & Parser – Consola Interactiva    ║
-║  Escribe código para ver el AST por defecto.         ║
-║  Comandos especiales:                                ║
-║    :tokens <codigo> → Mostrar tokens generados       ║
-║    :q  o  exit    → Salir                            ║
-║    :h  o  help    → Mostrar ayuda                    ║
-║    :clear         → Limpiar pantalla                 ║
-╚══════════════════════════════════════════════════════╝${C_RESET}
-`;
-
-const OLA = `
-Ola como estas
-`;
+║             RPS Console                              ║
+║  Comandos de Modo:                                   ║
+║    :eval → Cambia al modo Evaluador de código    ║
+║    :ast      → Cambia al modo Visualizador de AST    ║
+║  Comandos de Utilidad:                               ║
+║    :tokens <codigo> → Muestra los tokens al instante ║
+║    :clear           → Limpiar pantalla               ║
+║    :q o exit        → Salir del intérprete           ║
+╚══════════════════════════════════════════════════════╝${C_RESET}`;
+}
 
 const HELP = `
-${C_YELLOW}${C_BOLD}Ejemplos de entrada:${C_RESET}
-  ${C_DIM}let x = 42;${C_RESET}
-  ${C_DIM}let suma = function(a, b) { return a + b; };${C_RESET}
-  ${C_DIM}if (x >= 10 && x != 20) { print("ok"); }${C_RESET}
-  ${C_DIM}2 ** 3 ** 2;${C_RESET}
+${C_YELLOW}${C_BOLD}Ejemplos de código para RPS:${C_RESET}
+  ${C_DIM}let x = 10;${C_RESET}
+  ${C_DIM}for (let i = 0; i < 3; i += 1) { print(i); }${C_RESET}
+  ${C_DIM}const f = function(a, b) { return a ** b; }; f(2, 3);${C_RESET}
 `;
 
 function padEnd(str: string, len: number): string {
-  return str.length >= len ? str : str + " ".repeat(len - str.length);
+  const cleanStr = str.replace(/\x1b\[[0-9;]*m/g, "");
+  const diff = str.length - cleanStr.length;
+  return str.length >= len + diff ? str : str + " ".repeat((len + diff) - str.length);
 }
 
 function printTokens(tokens: Token[]): void {
@@ -65,7 +68,6 @@ function printTokens(tokens: Token[]): void {
 
   for (const tok of tokens) {
     if (tok.type === TokenType.EOF) break;
-    
     let typeColor = C_GREEN;
     if (tok.type === TokenType.ILLEGAL) typeColor = C_RED;
     
@@ -73,97 +75,115 @@ function printTokens(tokens: Token[]): void {
       `  ${typeColor}${padEnd(tok.type, 16)}${C_RESET} ${C_YELLOW}${padEnd(`"${tok.literal}"`, 22)}${C_RESET} ${C_DIM}${tok.line}:${tok.column}${C_RESET}`
     );
   }
-
   console.log(`${C_DIM}${sep}${C_RESET}`);
-  const count = tokens.filter(t => t.type !== TokenType.EOF).length;
-  console.log(`  Total: ${C_CYAN}${count}${C_RESET} token(s)\n`);
 }
 
 export function startRepl(): void {
-  console.log(BANNER);
+  let currentMode: ReplMode = "AST";
+  console.log(getBanner(currentMode));
+
+  // Ámbito de variables en memoria persistente para el Evaluador
+  let evalEnv = Environment.createGlobalEnvironment();
 
   const rl = readline.createInterface({
     input : process.stdin,
     output: process.stdout,
-    prompt: `${C_GREEN}${C_BOLD}RPS>> ${C_RESET}`,
   });
 
-  rl.prompt();
+  const setPrompt = () => {
+    const promptLabel = currentMode === "AST" ? "RPS(ast)>> " : "RPS(eval)>> ";
+    const color = currentMode === "AST" ? C_YELLOW : C_GREEN;
+    rl.setPrompt(`${color}${C_BOLD}${promptLabel}${C_RESET}`);
+    rl.prompt();
+  };
+
+  setPrompt();
 
   rl.on("line", (line: string) => {
     const input = line.trim();
 
-    if (!input) { rl.prompt(); return; }
+    if (!input) { setPrompt(); return; }
 
-    // Comandos Globales de Salida
     if (input === ":q" || input === "exit" || input === "quit" || input === ":Q") {
       rl.close();
       return;
     }
 
-    if (input === ":h" || input === "help") {
+    if (input === ":h" || input === "help" || input === ":help") {
       console.log(HELP);
-      rl.prompt();
+      setPrompt();
       return;
     }
 
     if (input === ":clear") {
       console.clear();
-      console.log(BANNER);
-      rl.prompt();
+      console.log(getBanner(currentMode));
+      setPrompt();
       return;
     }
 
-    // Easter Eggs
+    if (input === ":eval") {
+      currentMode = "EVALUATE";
+      evalEnv = Environment.createGlobalEnvironment(); // Reset limpio al entrar
+      console.log(`${C_GREEN} Mode: EVALUATE activado. Entorno de memoria listo.${C_RESET}\n`);
+      setPrompt();
+      return;
+    }
+
+    if (input === ":ast") {
+      currentMode = "AST";
+      console.log(`${C_CYAN} Mode: AST activado. Visualizador sintáctico listo.${C_RESET}\n`);
+      setPrompt();
+      return;
+    }
+
     if (input === ":ph") {
       console.log(C_RED + EEGG1 + C_RESET);
-      rl.prompt();
+      setPrompt();
       return;
     }
 
-    if (input === ":ola") {
-      console.log(C_GREEN + OLA + C_RESET);
-      rl.prompt();
-      return;
-    }
-
-    // ─── CONTROL DE BIFURCACIÓN (LEXER vs PARSER) ────────────────────────────
-    try {
-      if (input.startsWith(":tokens")) {
-        const targetInput = input.substring(7).trim();
-        
-        if (!targetInput) {
-          console.log(`${C_YELLOW}⚠️  Por favor escribe una expresión después del prefijo :tokens${C_RESET}\n`);
-          rl.prompt();
-          return;
-        }
-
-        // Camino B: Análisis Léxico puro (Tokens)
-        const lexer = new Lexer(targetInput);
-        const tokens = lexer.tokenize();
-        printTokens(tokens);
-        
+    if (input.startsWith(":tokens")) {
+      const targetInput = input.substring(7).trim();
+      if (!targetInput) {
+        console.log(`${C_YELLOW}Escribe código después de :tokens${C_RESET}\n`);
       } else {
-        // Camino A: Análisis Sintáctico (AST) - Por Defecto
-        const lexer = new Lexer(input);
-        const parser = new Parser(lexer);
-        const program = parser.parseProgram();
-        const errors = parser.getErrors();
+        printTokens(new Lexer(targetInput).tokenize());
+      }
+      setPrompt();
+      return;
+    }
 
-        if (errors.length > 0) {
-          console.log(`${C_RED}${C_BOLD}Errores de sintaxis encontrados:${C_RESET}`);
-          errors.forEach(err => console.log(`  ${C_RED}- ${err}${C_RESET}`));
-          console.log();
-        } else {
+    try {
+      const lexer = new Lexer(input);
+      const parser = new Parser(lexer);
+      const program = parser.parseProgram();
+      const errors = parser.getErrors();
+
+      if (errors.length > 0) {
+        console.log(`${C_RED}${C_BOLD}Errores de sintaxis encontrados:${C_RESET}`);
+        errors.forEach(err => console.log(`  ✗ ${err}${C_RESET}`));
+        console.log();
+      } else {
+        if (currentMode === "AST") {
           const astOutput = visualize(program);
           console.log(astOutput + "\n");
+        } else {
+          const result = evaluate(program, evalEnv);
+          if (result !== null) {
+            if (result.type() === ObjectTypes.ERROR) {
+              console.log(`${C_RED}${C_BOLD}Error en ejecución:${C_RESET} ${result.inspect()}\n`);
+            } else if (result !== NULL && result.type() !== ObjectTypes.NULL) {
+              console.log(`${C_YELLOW}${result.inspect()}${C_RESET}\n`);
+            }
+          }
         }
       }
     } catch (err) {
-      console.error(`${C_RED}Error crítico interno procesando la entrada:${C_RESET}`, err);
+      console.error(`${C_RED}Error crítico interno:${C_RESET}`, err);
     }
 
-    rl.prompt();
+    setPrompt();
   });
 
   rl.on("close", () => {
