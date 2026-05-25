@@ -36,7 +36,7 @@ function getBanner(mode: ReplMode): string {
 ${C_CYAN}${C_BOLD}╔══════════════════════════════════════════════════════╗
 ║             RPS Console                              ║
 ║  Comandos de Modo:                                   ║
-║    :eval → Cambia al modo Evaluador de código    ║
+║    :eval     → Cambia al modo Evaluador de código    ║
 ║    :ast      → Cambia al modo Visualizador de AST    ║
 ║  Comandos de Utilidad:                               ║
 ║    :tokens <codigo> → Muestra los tokens al instante ║
