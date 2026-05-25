@@ -14,19 +14,22 @@ RPS es un lenguaje de programación de tipado dinámico, ámbito léxico puro (*
 RPS/
 ├── src/
 │   ├── ast.ts             # Nodos de las estructuras del Árbol de Sintaxis Abstracta
-│   ├── token.ts           # Definiciones de tipos de componentes léxicos (Tokens)
+│   ├── tokens.ts           # Definiciones de tipos de componentes léxicos (Tokens)
 │   ├── lexer.ts           # Analizador Léxico (Escaneo de caracteres)
 │   ├── parser.ts          # Analizador Sintáctico descendente de precedencia (Pratt Parser)
 │   ├── object_system.ts   # Sistema de tipos en tiempo de ejecución (Runtime Objects)
 │   ├── environment.ts     # Memoria dinámica del sistema, Scopes y Clústeres de Contexto
 │   ├── evaluator.ts       # Evaluador (Caminante del AST / AST Walker)
 │   ├── repl.ts            # Consola interactiva multiplataforma de doble modo (:ast / :eval)
+|   ├── astVisualizer.ts   # Visualizador del AST.
 │   └── index.ts           # Punto de entrada y cargador de scripts por archivo
 ├── tests/
 │   ├── test_parser.ts     # Pruebas unitarias para la validación de la gramática
 │   └── test_evaluator.ts  # Pruebas unitarias de ejecución de lógica del runtime
+│   └── test_lexer.ts      # Pruebas unitarias de ejecución de análisis léxico e identificación de tokens
 ├── tsconfig.json
 ├── package.json
+├── euclides.rps           # Script con el algoritmo de euclides como prueba
 └── final.rps              # Script con la suite completa de pruebas de estrés
 
 ```
@@ -103,9 +106,9 @@ El entorno inyecta dinámicamente utilidades core como la función global `print
 
 ---
 
-## 🧪 Pruebas de Estrés Integradas (`final.rps`)
+## 🧪 Pruebas de Estrés Integradas (`final.rps`, `euclides.rps`)
 
-El lenguaje soporta código sumamente sofisticado. Aquí tienes los bloques principales evaluados con éxito:
+Se incluyen dos pruebas con archivos externos.
 
 ### Evaluación Lógica Extrema y Unaria
 
