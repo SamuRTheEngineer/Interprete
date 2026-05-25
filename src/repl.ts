@@ -1,130 +1,193 @@
-//  repl.ts  –  Read-Eval-Print Loop
+// =============================================================================
+//  src/repl.ts  –  Read-Eval-Print Loop (Consola Interactiva)
+// =============================================================================
 
 import * as readline from "readline";
 import { Lexer } from "./lexer";
-import type { Token } from "./tokens";
-import { TokenType } from "./tokens";
+import { Parser } from "./parser";
+import { evaluate } from "./evaluator";
+import { Environment } from "./environment";
+import { TokenType, type Token } from "./tokens";
+import { visualize } from "./astVisualizer";
+import { ObjectTypes, NULL } from "./object_system";
 
+// Paletas del REPL
+const C_RESET   = "\x1b[0m";
+const C_BOLD    = "\x1b[1m";
+const C_RED     = "\x1b[31m";
+const C_GREEN   = "\x1b[32m";
+const C_YELLOW  = "\x1b[33m";
+const C_CYAN    = "\x1b[36m";
+const C_DIM     = "\x1b[90m";
+
+type ReplMode = "AST" | "EVALUATE";
 
 const EEGG1 = `
   _____                     ___________
- |  __ \                    |  |  __  |
+ |  __ \\                    |  |  __  |
  | |__) |___  _ __ _ __     |  | |  | |
- |  ___/ _ \| '__| '_ \    _|  |_|  |_|
+ |  ___/ _ \\| '__| '_ \\    _|  |_|  |_|
  | |  | (_) | |  | | | |  |            |
- |_|   \___/|_|  |_| |_|  |____HUB_____|
+ |_|   \\___/|_|  |_| |_|  |____HUB_____|
 `;
 
-const BANNER = `
-╔══════════════════════════════════════════════════════╗
-║          RPS Lexer  –  Analizador Léxico             ║
-║  Escribe código y verás los tokens generados.        ║
-║  Comandos especiales:                                ║
-║    :q  o  exit  → salir                              ║
-║    :h           → mostrar ayuda                      ║
-║    :clear        → limpiar pantalla                  ║
-╚══════════════════════════════════════════════════════╝
-`;
-
-const OLA = `
-Ola como estas
-`;
+function getBanner(mode: ReplMode): string {
+  return `
+${C_CYAN}${C_BOLD}╔══════════════════════════════════════════════════════╗
+║             RPS Console                              ║
+║  Comandos de Modo:                                   ║
+║    :eval → Cambia al modo Evaluador de código    ║
+║    :ast      → Cambia al modo Visualizador de AST    ║
+║  Comandos de Utilidad:                               ║
+║    :tokens <codigo> → Muestra los tokens al instante ║
+║    :clear           → Limpiar pantalla               ║
+║    :q o exit        → Salir del intérprete           ║
+╚══════════════════════════════════════════════════════╝${C_RESET}`;
+}
 
 const HELP = `
-Ejemplos de entrada:
-  let x = 42;
-  function suma(a, b) { return a + b; }
-  if (x >= 10 && x != 20) { print("ok"); }
-  let pi = 3.14;
+${C_YELLOW}${C_BOLD}Ejemplos de código para RPS:${C_RESET}
+  ${C_DIM}let x = 10;${C_RESET}
+  ${C_DIM}for (let i = 0; i < 3; i += 1) { print(i); }${C_RESET}
+  ${C_DIM}const f = function(a, b) { return a ** b; }; f(2, 3);${C_RESET}
 `;
 
 function padEnd(str: string, len: number): string {
-  return str.length >= len ? str : str + " ".repeat(len - str.length);
+  const cleanStr = str.replace(/\x1b\[[0-9;]*m/g, "");
+  const diff = str.length - cleanStr.length;
+  return str.length >= len + diff ? str : str + " ".repeat((len + diff) - str.length);
 }
 
 function printTokens(tokens: Token[]): void {
   const header = `  ${ padEnd("TIPO", 16) } ${ padEnd("LITERAL", 20) } LÍNEA:COL`;
   const sep    = "  " + "─".repeat(50);
 
-  console.log(sep);
-  console.log(header);
-  console.log(sep);
+  console.log(`${C_DIM}${sep}${C_RESET}`);
+  console.log(`${C_BOLD}${header}${C_RESET}`);
+  console.log(`${C_DIM}${sep}${C_RESET}`);
 
   for (const tok of tokens) {
     if (tok.type === TokenType.EOF) break;
-    const hasError = tok.type === TokenType.ILLEGAL;
+    let typeColor = C_GREEN;
+    if (tok.type === TokenType.ILLEGAL) typeColor = C_RED;
+    
     console.log(
-      `${padEnd(tok.type, 16)} ${padEnd(`"${tok.literal}"`, 22)} ${tok.line}:${tok.column}`
+      `  ${typeColor}${padEnd(tok.type, 16)}${C_RESET} ${C_YELLOW}${padEnd(`"${tok.literal}"`, 22)}${C_RESET} ${C_DIM}${tok.line}:${tok.column}${C_RESET}`
     );
   }
-
-  console.log(sep);
-  const count = tokens.filter(t => t.type !== TokenType.EOF).length;
-  console.log(`  Total: ${count} token(s)\n`);
+  console.log(`${C_DIM}${sep}${C_RESET}`);
 }
 
 export function startRepl(): void {
-  console.log(BANNER);
+  let currentMode: ReplMode = "AST";
+  console.log(getBanner(currentMode));
+
+  // Ámbito de variables en memoria persistente para el Evaluador
+  let evalEnv = Environment.createGlobalEnvironment();
 
   const rl = readline.createInterface({
     input : process.stdin,
     output: process.stdout,
-    prompt: "RPS>> ",
   });
 
-  rl.prompt();
+  const setPrompt = () => {
+    const promptLabel = currentMode === "AST" ? "RPS(ast)>> " : "RPS(eval)>> ";
+    const color = currentMode === "AST" ? C_YELLOW : C_GREEN;
+    rl.setPrompt(`${color}${C_BOLD}${promptLabel}${C_RESET}`);
+    rl.prompt();
+  };
+
+  setPrompt();
 
   rl.on("line", (line: string) => {
     const input = line.trim();
 
-    if (!input) { rl.prompt(); return; }
+    if (!input) { setPrompt(); return; }
 
     if (input === ":q" || input === "exit" || input === "quit" || input === ":Q") {
       rl.close();
-        return;
+      return;
     }
 
-    if (input === ":h" || input === "help") {
+    if (input === ":h" || input === "help" || input === ":help") {
       console.log(HELP);
-      rl.prompt();
+      setPrompt();
       return;
     }
 
     if (input === ":clear") {
       console.clear();
-      console.log(BANNER);
-      rl.prompt();
+      console.log(getBanner(currentMode));
+      setPrompt();
       return;
-
     }
 
-    //Easter Eggs
+    if (input === ":eval") {
+      currentMode = "EVALUATE";
+      evalEnv = Environment.createGlobalEnvironment(); // Reset limpio al entrar
+      console.log(`${C_GREEN} Mode: EVALUATE activado. Entorno de memoria listo.${C_RESET}\n`);
+      setPrompt();
+      return;
+    }
+
+    if (input === ":ast") {
+      currentMode = "AST";
+      console.log(`${C_CYAN} Mode: AST activado. Visualizador sintáctico listo.${C_RESET}\n`);
+      setPrompt();
+      return;
+    }
 
     if (input === ":ph") {
-      console.log(EEGG1);
-      rl.prompt();
+      console.log(C_RED + EEGG1 + C_RESET);
+      setPrompt();
       return;
     }
 
-    if (input === ":ola") {
-      console.log(OLA);
-      rl.prompt();
+    if (input.startsWith(":tokens")) {
+      const targetInput = input.substring(7).trim();
+      if (!targetInput) {
+        console.log(`${C_YELLOW}Escribe código después de :tokens${C_RESET}\n`);
+      } else {
+        printTokens(new Lexer(targetInput).tokenize());
+      }
+      setPrompt();
       return;
     }
 
     try {
-      const lexer  = new Lexer(input);
-      const tokens = lexer.tokenize();
-      printTokens(tokens);
+      const lexer = new Lexer(input);
+      const parser = new Parser(lexer);
+      const program = parser.parseProgram();
+      const errors = parser.getErrors();
+
+      if (errors.length > 0) {
+        console.log(`${C_RED}${C_BOLD}Errores de sintaxis encontrados:${C_RESET}`);
+        errors.forEach(err => console.log(`  ✗ ${err}${C_RESET}`));
+        console.log();
+      } else {
+        if (currentMode === "AST") {
+          const astOutput = visualize(program);
+          console.log(astOutput + "\n");
+        } else {
+          const result = evaluate(program, evalEnv);
+          if (result !== null) {
+            if (result.type() === ObjectTypes.ERROR) {
+              console.log(`${C_RED}${C_BOLD}Error en ejecución:${C_RESET} ${result.inspect()}\n`);
+            } else if (result !== NULL && result.type() !== ObjectTypes.NULL) {
+              console.log(`${C_YELLOW}${result.inspect()}${C_RESET}\n`);
+            }
+          }
+        }
+      }
     } catch (err) {
-      console.error("  Error interno del lexer:", err);
+      console.error(`${C_RED}Error crítico interno:${C_RESET}`, err);
     }
 
-    rl.prompt();
+    setPrompt();
   });
 
   rl.on("close", () => {
-    console.log("\nRPS finalizado.");
+    console.log(`\n${C_YELLOW}RPS finalizado.${C_RESET}`);
     process.exit(0);
   });
 }

@@ -177,7 +177,9 @@ export class Parser {
       [TokenType.ASTERISK,        (left) => this.parseInfixExpression(left)],
       [TokenType.SLASH,           (left) => this.parseInfixExpression(left)],
       [TokenType.PERCENT,         (left) => this.parseInfixExpression(left)],
-      [TokenType.POWER,           (left) => this.parseInfixExpression(left)],
+
+      [TokenType.POWER,           (left) => this.parsePowerExpression(left)],
+      
       [TokenType.EQ,              (left) => this.parseInfixExpression(left)],
       [TokenType.NEQ,             (left) => this.parseInfixExpression(left)],
       [TokenType.LT,              (left) => this.parseInfixExpression(left)],
@@ -361,45 +363,55 @@ export class Parser {
    * Los tres componentes del encabezado son opcionales.
    * Ejemplo: for (let i = 0; i < 10; i += 1) { ... }
    */
-  private parseForStatement(): ForStatement | null {
-    // token FOR
+private parseForStatement(): ForStatement | null {
     const token = this.currentToken;
 
-    // Esperamos el token '(' después de 'for'
     if (!this.expectPeek(TokenType.LPAREN)) return null;
     this.advance();
 
-    // ── Init ─────────────────────────────────────────────────────────────
+    // 1. Sección de Inicialización (Aquí SÍ se permite 'let')
     let init: Statement | null = null;
     if (!this.currentTokenIs(TokenType.SEMICOLON)) {
       init = this.parseStatement();
-      // parseStatement deja currentToken en el último token consumido;
-      // si no terminó en ';', lo esperamos
       if (!this.currentTokenIs(TokenType.SEMICOLON)) {
         if (!this.expectPeek(TokenType.SEMICOLON)) return null;
       }
     }
-    this.advance(); // avanza más allá del ';' de init
+    this.advance(); // Avanza más allá del primer ';'
 
-    // ── Condición ─────────────────────────────────────────────────────────
+    // 2. Sección de Condición (Lanzar error explícito si viene un 'let')
+    if (this.currentTokenIs(TokenType.LET)) {
+      this.errors.push(
+        `[${this.currentToken.line}:${this.currentToken.column}] Error de sintaxis: ` +
+        `No se permiten declaraciones 'let' dentro de la condición de un ciclo 'for'.`
+      );
+      return null;
+    }
+
     let condition: Expression | null = null;
     if (!this.currentTokenIs(TokenType.SEMICOLON)) {
       condition = this.parseExpression(Precedence.LOWEST);
       if (!this.expectPeek(TokenType.SEMICOLON)) return null;
     }
-    this.advance(); // avanza más allá del ';' de condición
+    this.advance(); // Avanza más allá del segundo ';'
 
-    // ── Update ────────────────────────────────────────────────────────────
+    // 3. Sección de Actualización (Lanzar error explícito si viene un 'let')
+    if (this.currentTokenIs(TokenType.LET)) {
+      this.errors.push(
+        `[${this.currentToken.line}:${this.currentToken.column}] Error de sintaxis: ` +
+        `No se permiten declaraciones 'let' dentro de la expresión de actualización de un ciclo 'for'.`
+      );
+      return null;
+    }
+
     let update: Expression | null = null;
     if (!this.currentTokenIs(TokenType.RPAREN)) {
       update = this.parseExpression(Precedence.LOWEST);
       if (!this.expectPeek(TokenType.RPAREN)) return null;
     }
 
-    // Esperamos el token '{' al inicio del cuerpo del for
     if (!this.expectPeek(TokenType.LBRACE)) return null;
 
-    // Parseamos el bloque de sentencias dentro del for
     const body = this.parseBlockStatement();
 
     return new ForStatement(token, init, condition, update, body);
@@ -769,6 +781,26 @@ export class Parser {
     const right = this.parseExpression(prec);
     return new InfixExpression(token, left, operator, right);
   }
+
+  /*
+  Parsea la expresión de potencia: left ** right
+Recibe la expresión izquierda ya parseada como parámetro.
+El _current_token apunta al operador '**'.
+  */
+  private parsePowerExpression(left: Expression): InfixExpression | null {
+  const token = this.currentToken;
+  const operator = this.currentToken.literal;
+  const prec = this.currentPrecedence();
+
+  this.advance(); // Consume '**'
+
+  // Al restar 1 a la precedencia, permitimos que el Pratt Parser
+  // siga agrupando hacia la derecha si encuentra otra potencia consecutiva.
+  const right = this.parseExpression(prec - 1); 
+
+  return new InfixExpression(token, left, operator, right);
+}
+
 
   /**
    * Asignación: x = expr   x += expr   x -= expr  etc.

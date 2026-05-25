@@ -407,6 +407,11 @@ run("llamada_argumentos_son_expresiones", () => {
 // ERRORES DEL PARSER
 // ─────────────────────────────────────────────────────────────────────────────
 
+run("error_const_sin_inicializar", () => {
+  const result = parseWithErrors("const x;");
+  assert.ok(result.length > 0, "Se esperaba al menos un error");
+});
+
 run("error_let_sin_identificador", () => {
   const errors = parseWithErrors("let 5 = x;");
   assert.ok(errors.length > 0, "Se esperaba al menos un error");
@@ -425,6 +430,47 @@ run("error_if_sin_parentesis", () => {
 run("error_asignacion_a_no_identificador", () => {
   const errors = parseWithErrors("5 = 10;");
   assert.ok(errors.length > 0, "Se esperaba al menos un error");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POTENCIAS (ASOCIATIVIDAD A LA DERECHA)
+// ─────────────────────────────────────────────────────────────────────────────
+
+run("potencia_operador_simple", () => {
+  const program = parse("2 ** 3;");
+  const expr = (program.statements[0] as ExpressionStatement).expression as InfixExpression;
+  assert.ok(expr instanceof InfixExpression);
+  assert.equal(expr.operator, "**");
+  assert.equal((expr.left as IntegerLiteral).value, 2);
+  assert.equal((expr.right as IntegerLiteral).value, 3);
+});
+
+run("asociatividad_derecha_potencia", () => {
+  // 2 ** 3 ** 2  →  2 ** (3 ** 2)
+  // El operador de la raíz debe ser el primer '**', y su rama derecha debe ser otro InfixExpression.
+  const program = parse("2 ** 3 ** 2;");
+  const expr = (program.statements[0] as ExpressionStatement).expression as InfixExpression;
+  
+  assert.equal(expr.operator, "**");
+  assert.ok(expr.left instanceof IntegerLiteral);
+  assert.equal((expr.left as IntegerLiteral).value, 2);
+  
+  // Aquí se comprueba la asociatividad a la derecha
+  assert.ok(expr.right instanceof InfixExpression);
+  const rightExpr = expr.right as InfixExpression;
+  assert.equal(rightExpr.operator, "**");
+  assert.equal((rightExpr.left as IntegerLiteral).value, 3);
+  assert.equal((rightExpr.right as IntegerLiteral).value, 2);
+});
+
+run("precedencia_potencia_vs_multiplicacion", () => {
+  // 2 * 3 ** 4  →  2 * (3 ** 4) porque POWER > PRODUCT
+  const program = parse("2 * 3 ** 4;");
+  const expr = (program.statements[0] as ExpressionStatement).expression as InfixExpression;
+  
+  assert.equal(expr.operator, "*");
+  assert.ok(expr.right instanceof InfixExpression);
+  assert.equal((expr.right as InfixExpression).operator, "**");
 });
 
 console.log("\nTodos los tests del parser pasaron correctamente.");
